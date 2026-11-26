@@ -1,0 +1,2008 @@
+```html
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1a73e8" />
+  <title>Agenda — Google Agenda PWA</title>
+
+  <!-- Ingebouwd Web App Manifest via Data-URL -->
+  <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Agenda%20PWA%22%2C%22short_name%22%3A%22Agenda%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f8fafd%22%2C%22theme_color%22%3A%22%231a73e8%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%2520viewBox%3D'0%200%2064%2064'%253E%253Crect%2520width%3D'64'%2520height%3D'64'%2520rx%3D'14'%2520fill%3D'%25231a73e8'%2F%253E%253Ctext%2520x%3D'32'%2520y%3D'43'%2520font-family%3D'sans-serif'%2520font-size%3D'30'%2520font-weight%3D'bold'%2520fill%3D'white'%2520text-anchor%3D'middle'%253E31%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D" />
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            m3: {
+              bg: '#f8fafd',
+              surface: '#ffffff',
+              surfaceVariant: '#eff3f8',
+              primary: '#1a73e8',
+              primaryHover: '#1557b0',
+              primaryContainer: '#d3e3fd',
+              onPrimaryContainer: '#041e49',
+              outline: '#dce3ec',
+              text: '#1f1f1f',
+              textMuted: '#5f6368',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background-color: #f8fafd; color: #1f1f1f; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    @keyframes pulseRing {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.55); }
+      70% { transform: scale(1); box-shadow: 0 0 0 22px rgba(26, 115, 232, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(26, 115, 232, 0); }
+    }
+    .alarm-pulse { animation: pulseRing 1.8s infinite; }
+
+    @keyframes modalPop {
+      from { opacity: 0; transform: scale(0.96) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .modal-animate { animation: modalPop 0.18s cubic-bezier(0.2, 0, 0, 1) forwards; }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col select-none">
+
+  <!-- TOPBAR (Google Agenda Stijl) -->
+  <header class="h-16 bg-m3-bg border-b border-m3-outline px-3 sm:px-5 flex items-center justify-between gap-2 shrink-0 z-30">
+    <div class="flex items-center gap-2 sm:gap-3">
+      <button type="button" onclick="toggleSidebar()" title="Hoofdmenu"
+        class="p-2.5 rounded-full hover:bg-slate-200/70 active:bg-slate-300/70 transition text-m3-textMuted">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      <!-- Google Agenda Logo Badge -->
+      <div class="flex items-center gap-2.5">
+        <div id="logo-day-badge"
+          class="w-9 h-9 rounded-xl bg-m3-primary text-white font-bold text-sm flex items-center justify-center shadow-xs">
+          31
+        </div>
+        <span class="text-xl font-medium tracking-tight text-m3-text hidden sm:inline">Agenda</span>
+      </div>
+
+      <!-- Vandaag Knop -->
+      <button type="button" onclick="goToToday()"
+        class="ml-2 sm:ml-4 px-4 py-1.5 rounded-full border border-m3-outline bg-white hover:bg-slate-100 text-sm font-medium text-m3-text transition shadow-2xs">
+        Vandaag
+      </button>
+
+      <!-- Vorige / Volgende Periode -->
+      <div class="flex items-center gap-0.5">
+        <button type="button" onclick="navigatePeriod(-1)" title="Vorige"
+          class="p-2 rounded-full hover:bg-slate-200/70 text-m3-textMuted transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <button type="button" onclick="navigatePeriod(1)" title="Volgende"
+          class="p-2 rounded-full hover:bg-slate-200/70 text-m3-textMuted transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Huidige Maand/Jaar Titel -->
+      <h1 id="current-period-label" class="text-base sm:text-xl font-medium text-m3-text truncate ml-1">
+        November 2026
+      </h1>
+    </div>
+
+    <!-- Rechts: Weergave Wisselaar -->
+    <div class="flex items-center gap-2">
+      <div class="inline-flex rounded-full bg-m3-surfaceVariant p-1 border border-m3-outline/70">
+        <button type="button" id="btn-view-day" onclick="changeView('day')"
+          class="px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition">Dag</button>
+        <button type="button" id="btn-view-week" onclick="changeView('week')"
+          class="px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition">Week</button>
+        <button type="button" id="btn-view-month" onclick="changeView('month')"
+          class="px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition">Maand</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- HOOFDINHOUD: ZIJBALK + AGENDAGRID -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- Mobiele Backdrop voor Zijbalk -->
+    <div id="sidebar-backdrop" onclick="toggleSidebar(false)"
+      class="fixed inset-0 bg-black/30 z-20 hidden lg:hidden"></div>
+
+    <!-- ZIJBALK -->
+    <aside id="sidebar"
+      class="w-72 bg-m3-bg border-r border-m3-outline/70 flex flex-col justify-between p-4 shrink-0 z-30 transition-transform duration-200 fixed lg:static inset-y-16 left-0 overflow-y-auto">
+      <div class="space-y-6">
+        <!-- "+ Maken" FAB Knop -->
+        <button type="button" onclick="openEventModal()"
+          class="inline-flex items-center gap-3 pl-4 pr-6 py-3.5 rounded-2xl bg-white hover:bg-slate-50 active:scale-[0.99] text-m3-text font-medium text-sm shadow-md border border-m3-outline/60 transition">
+          <svg class="w-6 h-6 text-m3-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+          </svg>
+          <span>Maken</span>
+        </button>
+
+        <!-- Mini-Maandkalender -->
+        <div class="bg-white rounded-2xl p-3 border border-m3-outline/70 shadow-2xs">
+          <div class="flex items-center justify-between mb-2 px-1">
+            <span id="mini-cal-title" class="text-xs font-semibold text-m3-text capitalize">november 2026</span>
+            <div class="flex items-center gap-1">
+              <button type="button" onclick="navigateMiniMonth(-1)" class="p-1 rounded-full hover:bg-slate-100 text-m3-textMuted">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <button type="button" onclick="navigateMiniMonth(1)" class="p-1 rounded-full hover:bg-slate-100 text-m3-textMuted">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="grid grid-cols-7 text-center text-[10px] font-semibold text-m3-textMuted mb-1">
+            <span>M</span><span>D</span><span>W</span><span>D</span><span>V</span><span>Z</span><span>Z</span>
+          </div>
+          <div id="mini-cal-grid" class="grid grid-cols-7 gap-y-0.5 text-center text-xs"></div>
+        </div>
+
+        <!-- Mijn Agenda's & Categorieën -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between px-1">
+            <span class="text-xs font-semibold uppercase tracking-wider text-m3-textMuted">Mijn agenda's</span>
+            <button type="button" onclick="openCategoryManagerModal(false)" title="Agenda toevoegen of beheren"
+              class="p-1.5 rounded-full hover:bg-slate-200/80 text-m3-textMuted hover:text-m3-primary transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+
+          <div id="sidebar-categories-list" class="space-y-1"></div>
+
+          <button type="button" onclick="openCategoryManagerModal(false)"
+            class="w-full mt-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-m3-primary bg-m3-primaryContainer/50 hover:bg-m3-primaryContainer transition">
+            <span>⚙️</span>
+            <span>Agenda's & categorieën beheren</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Onderaan Zijbalk: Test Melding Nu + PWA Status -->
+      <div class="pt-4 mt-4 border-t border-m3-outline/70 space-y-2.5">
+        <button type="button" onclick="triggerTestAlarm()"
+          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-white font-semibold text-xs shadow-xs transition">
+          <span>🔔</span>
+          <span>Test Melding Nu</span>
+        </button>
+        <div class="flex items-center justify-between text-[11px] text-m3-textMuted px-1">
+          <span id="pwa-status-text">● Offline klaar (PWA)</span>
+          <span id="audio-status-text">Geluid actief</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- HOOFD-AGENDA VIEWPORT -->
+    <main class="flex-1 bg-white rounded-tl-3xl border-t border-l border-m3-outline/70 overflow-hidden flex flex-col shadow-2xs">
+      <div id="calendar-view-container" class="flex-1 flex flex-col overflow-hidden"></div>
+    </main>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 1: AFSPRAAK MAKEN / BEWERKEN                                    -->
+  <!-- ===================================================================== -->
+  <div id="event-modal" class="fixed inset-0 bg-black/40 backdrop-blur-[1px] z-40 hidden items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-m3-outline overflow-hidden modal-animate flex flex-col max-h-[92vh]">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between px-5 py-3.5 bg-m3-surfaceVariant/70 border-b border-m3-outline/60">
+        <span id="event-modal-heading" class="text-sm font-semibold text-m3-text">Nieuwe afspraak</span>
+        <div class="flex items-center gap-1">
+          <button type="button" id="btn-delete-event" onclick="initiateDeleteEvent()" title="Afspraak verwijderen"
+            class="hidden p-2 rounded-full hover:bg-red-100 text-red-600 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+          <button type="button" onclick="closeEventModal()" title="Sluiten"
+            class="p-2 rounded-full hover:bg-slate-200/80 text-m3-textMuted transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Formulier -->
+      <form id="event-form" onsubmit="handleEventFormSubmit(event)" class="p-5 space-y-4 overflow-y-auto">
+        <input type="hidden" id="event-id" />
+        <input type="hidden" id="event-instance-date" />
+
+        <!-- Titel -->
+        <div>
+          <input type="text" id="event-title" required placeholder="Titel toevoegen"
+            class="w-full text-xl font-medium text-m3-text placeholder-slate-400 border-b-2 border-m3-outline focus:border-m3-primary pb-2 focus:outline-none transition" />
+        </div>
+
+        <!-- Datum, Hele Dag & Tijden -->
+        <div class="flex items-start gap-3.5">
+          <svg class="w-5 h-5 text-m3-textMuted mt-2 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div class="flex-1 space-y-2.5">
+            <div class="flex flex-wrap items-center gap-2">
+              <input type="date" id="event-date" required
+                class="bg-m3-surfaceVariant px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-m3-text focus:outline-none focus:ring-2 focus:ring-m3-primary" />
+              <label class="inline-flex items-center gap-2 text-xs font-medium text-m3-textMuted cursor-pointer px-2 py-1.5 rounded-xl hover:bg-slate-100">
+                <input type="checkbox" id="event-all-day" onchange="toggleAllDayInputs()"
+                  class="w-4 h-4 rounded text-m3-primary focus:ring-m3-primary" />
+                <span>Hele dag</span>
+              </label>
+            </div>
+
+            <div id="time-inputs-row" class="flex items-center gap-2">
+              <input type="time" id="event-start-time" value="09:00"
+                class="bg-m3-surfaceVariant px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-m3-text focus:outline-none focus:ring-2 focus:ring-m3-primary" />
+              <span class="text-xs text-m3-textMuted">tot</span>
+              <input type="time" id="event-end-time" value="10:00"
+                class="bg-m3-surfaceVariant px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-m3-text focus:outline-none focus:ring-2 focus:ring-m3-primary" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Herhaling & Einddatum -->
+        <div class="flex items-start gap-3.5">
+          <svg class="w-5 h-5 text-m3-textMuted mt-2 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <div class="flex-1 space-y-2">
+            <select id="event-recurrence" onchange="toggleRecurrenceUntilRow()"
+              class="w-full bg-m3-surfaceVariant px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-m3-text focus:outline-none focus:ring-2 focus:ring-m3-primary">
+              <option value="none">Niet herhalen</option>
+              <option value="daily">Dagelijks</option>
+              <option value="weekly">Wekelijks</option>
+              <option value="biweekly">Tweewekelijks</option>
+              <option value="monthly">Maandelijks</option>
+              <option value="yearly">Jaarlijks</option>
+            </select>
+            <div id="recurrence-until-row" class="hidden flex items-center gap-2">
+              <label for="event-until-date" class="text-xs text-m3-textMuted">Herhalen t/m (optioneel):</label>
+              <input type="date" id="event-until-date"
+                class="bg-m3-surfaceVariant px-2.5 py-1.5 rounded-xl text-xs font-medium text-m3-text focus:outline-none focus:ring-2 focus:ring-m3-primary" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Agenda / Categorie Kiezer -->
+        <div class="flex items-start gap-3.5">
+          <svg class="w-5 h-5 text-m3-textMuted mt-1.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+          </svg>
+          <div class="flex-1 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-m3-textMuted">Agenda / Categorie</span>
+              <button type="button" onclick="openCategoryManagerModal(true)" class="text-xs font-semibold text-m3-primary hover:underline">
+                + Nieuwe agenda
+              </button>
+            </div>
+            <div id="modal-category-picker" class="flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+
+        <!-- Herinnering & Meldingsgeluid -->
+        <div class="flex items-start gap-3.5">
+          <svg class="w-5 h-5 text-m3-textMuted mt-2 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <select id="event-reminder" aria-label="Herinneringstijd"
+              class="bg-m3-surfaceVariant hover:bg-slate-200/70 px-3 py-2 rounded-xl text-xs font-medium text-m3-text focus:outline-none focus:ring-2 focus:ring-m3-primary">
+              <option value="-1">Geen melding</option>
+              <option value="0">Op tijdstip van afspraak</option>
+              <option value="5">5 minuten van tevoren</option>
+              <option value="10" selected>10 minuten van tevoren</option>
+              <option value="15">15 minuten van tevoren</option>
+              <option value="30">30 minuten van tevoren</option>
+              <option value="60">1 uur van tevoren</option>
+            </select>
+            <div class="flex items-center gap-1.5">
+              <select id="event-sound" aria-label="Meldingsgeluid"
+                class="flex-1 bg-m3-surfaceVariant hover:bg-slate-200/70 px-3 py-2 rounded-xl text-xs font-medium text-m3-text focus:outline-none focus:ring-2 focus:ring-m3-primary">
+                <option value="bell">🔔 Standaard Bel</option>
+                <option value="chime">✨ Zachte Chime</option>
+                <option value="urgent">🚨 Urgent Alarm</option>
+              </select>
+              <button type="button" onclick="playSelectedModalSound()" title="Geluid beluisteren"
+                class="p-2 rounded-xl bg-m3-surfaceVariant hover:bg-m3-primaryContainer text-m3-text transition shrink-0">
+                🔊
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Locatie -->
+        <div class="flex items-center gap-3.5">
+          <svg class="w-5 h-5 text-m3-textMuted shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <input type="text" id="event-location" placeholder="Locatie toevoegen"
+            class="flex-1 bg-m3-surfaceVariant/70 focus:bg-m3-surfaceVariant px-3 py-2 rounded-xl text-xs sm:text-sm text-m3-text placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-m3-primary" />
+        </div>
+
+        <!-- Beschrijving -->
+        <div class="flex items-start gap-3.5">
+          <svg class="w-5 h-5 text-m3-textMuted mt-2 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h10" />
+          </svg>
+          <textarea id="event-description" rows="2" placeholder="Beschrijving of notities toevoegen"
+            class="flex-1 bg-m3-surfaceVariant/70 focus:bg-m3-surfaceVariant px-3 py-2 rounded-xl text-xs sm:text-sm text-m3-text placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-m3-primary resize-none"></textarea>
+        </div>
+
+        <!-- Opslaan Knoppen -->
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-m3-outline/60">
+          <button type="button" onclick="closeEventModal()"
+            class="px-4 py-2 rounded-full text-xs sm:text-sm font-medium text-m3-textMuted hover:bg-slate-100 transition">
+            Annuleren
+          </button>
+          <button type="submit"
+            class="px-6 py-2 rounded-full bg-m3-primary hover:bg-m3-primaryHover text-white text-xs sm:text-sm font-semibold shadow-xs transition">
+            Opslaan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 2: HERHALENDE REEKS KEUZEDIALOOG (GOOGLE AGENDA STIJL)          -->
+  <!-- ===================================================================== -->
+  <div id="recurrence-scope-modal" class="fixed inset-0 bg-black/45 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-m3-outline modal-animate space-y-4">
+      <h3 id="recurrence-scope-title" class="text-base font-semibold text-m3-text">Herhalende afspraak bewerken</h3>
+      <div class="space-y-2.5 text-sm text-m3-text">
+        <label class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer">
+          <input type="radio" name="recurrence-scope" value="single" checked class="w-4 h-4 text-m3-primary" />
+          <span>Alleen deze afspraak</span>
+        </label>
+        <label class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer">
+          <input type="radio" name="recurrence-scope" value="following" class="w-4 h-4 text-m3-primary" />
+          <span>Deze en volgende afspraken</span>
+        </label>
+        <label id="recurrence-scope-all-option" class="hidden flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer">
+          <input type="radio" name="recurrence-scope" value="all" class="w-4 h-4 text-m3-primary" />
+          <span>Alle afspraken in de reeks</span>
+        </label>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeRecurrenceScopeModal()"
+          class="px-4 py-2 rounded-full text-xs font-medium text-m3-textMuted hover:bg-slate-100">
+          Annuleren
+        </button>
+        <button type="button" onclick="confirmRecurrenceScopeAction()"
+          class="px-5 py-2 rounded-full bg-m3-primary hover:bg-m3-primaryHover text-white text-xs font-semibold">
+          Bevestigen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 3: AGENDA'S & CATEGORIEËN BEHEREN                               -->
+  <!-- ===================================================================== -->
+  <div id="category-manager-modal" class="fixed inset-0 bg-black/45 z-50 hidden items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-m3-outline overflow-hidden modal-animate flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between px-5 py-3.5 bg-m3-surfaceVariant/70 border-b border-m3-outline/60">
+        <h3 class="text-sm font-semibold text-m3-text">Agenda's & categorieën beheren</h3>
+        <button type="button" onclick="closeCategoryManagerModal()" class="p-2 rounded-full hover:bg-slate-200/80 text-m3-textMuted">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-5">
+        <!-- Nieuwe of bestaande agenda bewerken -->
+        <form id="category-form" onsubmit="handleCategoryFormSubmit(event)" class="bg-m3-surfaceVariant/60 p-4 rounded-2xl space-y-3 border border-m3-outline/60">
+          <div class="flex items-center justify-between">
+            <span id="cat-form-mode-label" class="text-xs font-semibold text-m3-primary">Nieuwe agenda toevoegen</span>
+            <button type="button" id="cat-form-reset-btn" onclick="resetCategoryForm()" class="hidden text-xs text-m3-textMuted hover:underline">
+              Nieuwe maken
+            </button>
+          </div>
+          <input type="hidden" id="cat-edit-id" />
+
+          <div class="flex gap-2">
+            <input type="text" id="cat-icon-input" value="📅" maxlength="4" aria-label="Icoon"
+              class="w-12 text-center text-lg bg-white border border-m3-outline rounded-xl py-2 focus:outline-none focus:ring-2 focus:ring-m3-primary" />
+            <input type="text" id="cat-name-input" required placeholder="Naam van agenda (bijv. Sport, Studie)"
+              class="flex-1 bg-white border border-m3-outline rounded-xl px-3 py-2 text-sm text-m3-text focus:outline-none focus:ring-2 focus:ring-m3-primary" />
+          </div>
+
+          <!-- Icoon Snelkeuze -->
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" onclick="setCatIcon('📅')" class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 text-sm">📅</button>
+            <button type="button" onclick="setCatIcon('💼')" class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 text-sm">💼</button>
+            <button type="button" onclick="setCatIcon('🏃')" class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 text-sm">🏃</button>
+            <button type="button" onclick="setCatIcon('🩺')" class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 text-sm">🩺</button>
+            <button type="button" onclick="setCatIcon('🎓')" class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 text-sm">🎓</button>
+            <button type="button" onclick="setCatIcon('🏠')" class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 text-sm">🏠</button>
+            <button type="button" onclick="setCatIcon('✈️')" class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 text-sm">✈️</button>
+            <button type="button" onclick="setCatIcon('⭐')" class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 text-sm">⭐</button>
+          </div>
+
+          <!-- Kleurenpalet + Custom Kleurkiezer -->
+          <div class="space-y-1.5">
+            <span class="text-xs font-medium text-m3-textMuted">Kies een kleur</span>
+            <div id="cat-color-swatches" class="flex flex-wrap items-center gap-2"></div>
+          </div>
+
+          <div class="flex justify-end">
+            <button type="submit" id="cat-submit-btn"
+              class="px-4 py-2 rounded-full bg-m3-primary hover:bg-m3-primaryHover text-white text-xs font-semibold transition">
+              Agenda toevoegen
+            </button>
+          </div>
+        </form>
+
+        <!-- Lijst van bestaande agenda's -->
+        <div class="space-y-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-m3-textMuted">Bestaande agenda's</span>
+          <div id="manager-categories-list" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 4: VEILIG AGENDA VERWIJDEREN DIALOOG                            -->
+  <!-- ===================================================================== -->
+  <div id="delete-category-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-m3-outline modal-animate space-y-4">
+      <h3 class="text-base font-semibold text-m3-text">Agenda verwijderen</h3>
+      <p id="delete-cat-description" class="text-xs sm:text-sm text-m3-textMuted"></p>
+
+      <div id="delete-cat-transfer-box" class="hidden space-y-2 bg-m3-surfaceVariant p-3 rounded-2xl">
+        <label class="flex items-center gap-2 text-xs font-medium text-m3-text cursor-pointer">
+          <input type="radio" name="delete-cat-mode" value="transfer" checked class="text-m3-primary" />
+          <span>Afspraken overzetten naar:</span>
+        </label>
+        <select id="delete-cat-target-select"
+          class="w-full bg-white border border-m3-outline rounded-xl px-2.5 py-1.5 text-xs font-medium text-m3-text"></select>
+
+        <label class="flex items-center gap-2 text-xs font-medium text-red-600 cursor-pointer pt-1">
+          <input type="radio" name="delete-cat-mode" value="purge" class="text-red-600" />
+          <span>Alle afspraken definitief verwijderen</span>
+        </label>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" onclick="closeDeleteCategoryModal()"
+          class="px-4 py-2 rounded-full text-xs font-medium text-m3-textMuted hover:bg-slate-100">
+          Annuleren
+        </button>
+        <button type="button" onclick="confirmDeleteCategory()"
+          class="px-5 py-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-semibold">
+          Verwijderen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- VISUELE & AUDITIEVE ALARM-OVERLAY                                     -->
+  <!-- ===================================================================== -->
+  <div id="alarm-overlay" class="fixed inset-0 bg-slate-900/65 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-md p-6 sm:p-7 shadow-2xl border-2 border-m3-primary text-center space-y-5 modal-animate">
+      <div class="w-16 h-16 mx-auto rounded-full bg-m3-primary text-white flex items-center justify-center text-3xl alarm-pulse">
+        🔔
+      </div>
+      <div class="space-y-1">
+        <span id="alarm-category-badge" class="inline-block px-3 py-0.5 rounded-full text-xs font-semibold bg-m3-primaryContainer text-m3-onPrimaryContainer">
+          Herinnering
+        </span>
+        <h2 id="alarm-event-title" class="text-xl font-bold text-m3-text pt-1">Afspraak Titel</h2>
+        <p id="alarm-event-time" class="text-sm font-medium text-m3-textMuted">Vandaag om 10:00</p>
+        <p id="alarm-event-location" class="text-xs text-m3-textMuted"></p>
+      </div>
+
+      <div class="flex items-center justify-center gap-3 pt-2">
+        <button type="button" onclick="snoozeActiveAlarm()"
+          class="flex-1 px-4 py-3 rounded-2xl bg-m3-surfaceVariant hover:bg-slate-200 text-m3-text font-semibold text-sm transition">
+          💤 Snooze (5 min)
+        </button>
+        <button type="button" onclick="dismissActiveAlarm()"
+          class="flex-1 px-4 py-3 rounded-2xl bg-m3-primary hover:bg-m3-primaryHover text-white font-semibold text-sm shadow-md transition">
+          ✓ Begrepen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST MELDING -->
+  <div id="toast-banner"
+    class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-full shadow-lg z-50 hidden transition">
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- APPLICATIE LOGICA (PWA, WEB AUDIO, AGENDA ENGINE, REEKSEN)            -->
+  <!-- ===================================================================== -->
+  <script>
+    // 1. SERVICE WORKER REGISTRATIE VOOR OFFLINE PWA-ONDERSTEUNING
+    (function registerInlineServiceWorker() {
+      if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.protocol === 'http:')) {
+        const swCode = `
+          const CACHE_NAME = 'google-agenda-pwa-v1';
+          self.addEventListener('install', e => {
+            self.skipWaiting();
+          });
+          self.addEventListener('activate', e => {
+            e.waitUntil(self.clients.claim());
+          });
+          self.addEventListener('fetch', e => {
+            if (e.request.method !== 'GET') return;
+            e.respondWith(
+              caches.match(e.request).then(cached => {
+                return cached || fetch(e.request).then(resp => {
+                  const copy = resp.clone();
+                  caches.open(CACHE_NAME).then(cache => cache.put(e.request, copy));
+                  return resp;
+                }).catch(() => cached);
+              })
+            );
+          });
+        `;
+        try {
+          const blob = new Blob([swCode], { type: 'application/javascript' });
+          const swUrl = URL.createObjectURL(blob);
+          navigator.serviceWorker.register(swUrl).catch(() => {});
+        } catch (err) {}
+      }
+    })();
+
+    // 2. MATERIAL DESIGN KLEUREN & STANDAARD AGENDA'S
+    const M3_PALETTE = [
+      '#1a73e8', // Google Blauw
+      '#0b8043', // Salie Groen
+      '#d50000', // Tomaat Rood
+      '#f4511e', // Mandarijn Oranje
+      '#8e24aa', // Druif Paars
+      '#039be5', // Pauw Cyaan
+      '#e67c73', // Flamingo Roze
+      '#f6bf26', // Banaan Geel
+      '#3f51b5', // Bosbes Indigo
+      '#616161'  // Grafiet Grijs
+    ];
+
+    function buildCategoryColors(hex) {
+      const clean = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#1a73e8';
+      const r = parseInt(clean.slice(1, 3), 16);
+      const g = parseInt(clean.slice(3, 5), 16);
+      const b = parseInt(clean.slice(5, 7), 16);
+      // Lichte tint (14% kleur + 86% wit) voor kaartachtergrond
+      const lr = Math.round(r * 0.14 + 255 * 0.86);
+      const lg = Math.round(g * 0.14 + 255 * 0.86);
+      const lb = Math.round(b * 0.14 + 255 * 0.86);
+      // Donkere tint (55% kleur) voor leesbare tekst
+      const dr = Math.round(r * 0.55);
+      const dg = Math.round(g * 0.55);
+      const db = Math.round(b * 0.55);
+      return {
+        color: clean,
+        bgLight: `rgb(${lr}, ${lg}, ${lb})`,
+        textDark: `rgb(${dr}, ${dg}, ${db})`
+      };
+    }
+
+    const DEFAULT_CATEGORIES = [
+      { id: 'personal', name: 'Persoonlijk', icon: '📅', ...buildCategoryColors('#1a73e8') },
+      { id: 'work', name: 'Werk & Projecten', icon: '💼', ...buildCategoryColors('#0b8043') },
+      { id: 'health', name: 'Gezondheid / Medisch', icon: '🩺', ...buildCategoryColors('#8e24aa') },
+      { id: 'important', name: 'Belangrijk', icon: '⭐', ...buildCategoryColors('#d50000') }
+    ];
+
+    const STORAGE_KEYS = {
+      EVENTS: 'ga_pwa_events_v3',
+      CATEGORIES: 'ga_pwa_categories_v3',
+      VISIBLE: 'ga_pwa_visible_cats_v3'
+    };
+
+    const HOUR_HEIGHT = 56; // pixels per uur
+    const NL_MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+    const NL_DAYS_SHORT = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+    const NL_DAYS_FULL = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+
+    // 3. APPLICATIESTATUS
+    const state = {
+      view: 'week', // 'day' | 'week' | 'month'
+      currentDate: new Date(),
+      miniCalDate: new Date(),
+      categories: [],
+      visibleCategories: [],
+      events: [],
+      selectedModalCategory: 'personal',
+      selectedCatColor: '#1a73e8',
+      returnToEventModalAfterCatManager: false,
+      pendingRecurrenceAction: null, // { mode: 'edit'|'delete', eventId, instanceDate, formData? }
+      pendingDeleteCategoryId: null,
+      firedAlarmKeys: new Set(),
+      snoozedAlarms: [], // { triggerMs, eventSnapshot }
+      activeAlarm: null,
+      alarmRepeatTimer: null
+    };
+
+    // 4. DATUM HULPFUNCTIES
+    function formatDateYMD(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function parseDateYMD(str) {
+      if (!str || typeof str !== 'string') return new Date();
+      const [y, m, d] = str.split('-').map(Number);
+      return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+    }
+
+    function addDays(date, days) {
+      const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      copy.setDate(copy.getDate() + days);
+      return copy;
+    }
+
+    function getStartOfWeek(date) {
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const day = d.getDay(); // 0 = zo, 1 = ma
+      const diff = day === 0 ? -6 : 1 - day; // Maandag als eerste dag
+      d.setDate(d.getDate() + diff);
+      return d;
+    }
+
+    function isSameDay(a, b) {
+      return a.getFullYear() === b.getFullYear() &&
+             a.getMonth() === b.getMonth() &&
+             a.getDate() === b.getDate();
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('toast-banner');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+
+    // 5. OPSLAG LADEN & NORMALISEREN
+    function loadFromStorage() {
+      try {
+        const rawCats = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+        if (rawCats) {
+          const parsedCats = JSON.parse(rawCats);
+          if (Array.isArray(parsedCats) && parsedCats.length > 0) {
+            state.categories = parsedCats.map(c => ({
+              id: c.id || ('cat-' + Date.now()),
+              name: c.name || 'Agenda',
+              icon: c.icon || '📅',
+              ...buildCategoryColors(c.color || '#1a73e8')
+            }));
+          } else {
+            state.categories = [...DEFAULT_CATEGORIES];
+          }
+        } else {
+          state.categories = [...DEFAULT_CATEGORIES];
+        }
+
+        const rawVisible = localStorage.getItem(STORAGE_KEYS.VISIBLE);
+        if (rawVisible) {
+          const parsedVis = JSON.parse(rawVisible);
+          state.visibleCategories = Array.isArray(parsedVis)
+            ? parsedVis.filter(id => state.categories.some(c => c.id === id))
+            : state.categories.map(c => c.id);
+        } else {
+          state.visibleCategories = state.categories.map(c => c.id);
+        }
+
+        const rawEvents = localStorage.getItem(STORAGE_KEYS.EVENTS);
+        if (rawEvents) {
+          const parsedEvents = JSON.parse(rawEvents);
+          state.events = Array.isArray(parsedEvents)
+            ? parsedEvents.map(normalizeEventRecord)
+            : [];
+        } else {
+          seedInitialDemoEvents();
+        }
+      } catch (err) {
+        console.error('Fout bij laden localStorage:', err);
+        state.categories = [...DEFAULT_CATEGORIES];
+        state.visibleCategories = state.categories.map(c => c.id);
+        seedInitialDemoEvents();
+      }
+    }
+
+    function normalizeEventRecord(raw) {
+      const ev = raw && typeof raw === 'object' ? { ...raw } : {};
+      const fallbackCat = state.categories[0]?.id || 'personal';
+      const rec = ev.recurrence || 'none';
+      const isRecurring = rec !== 'none';
+
+      return {
+        id: String(ev.id || ('ev-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6))),
+        title: typeof ev.title === 'string' && ev.title.trim() ? ev.title.trim() : '(Geen titel)',
+        date: typeof ev.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ev.date) ? ev.date : formatDateYMD(new Date()),
+        startTime: typeof ev.startTime === 'string' && ev.startTime.includes(':') ? ev.startTime : '09:00',
+        endTime: typeof ev.endTime === 'string' && ev.endTime.includes(':') ? ev.endTime : '10:00',
+        allDay: Boolean(ev.allDay),
+        recurrence: rec,
+        untilDate: isRecurring ? (ev.untilDate || '') : '',
+        exceptions: isRecurring && ev.exceptions && typeof ev.exceptions === 'object' ? ev.exceptions : (isRecurring ? {} : undefined),
+        category: state.categories.some(c => c.id === ev.category) ? ev.category : fallbackCat,
+        reminderMinutes: Number.isFinite(Number(ev.reminderMinutes)) ? Number(ev.reminderMinutes) : 10,
+        sound: ['bell', 'chime', 'urgent'].includes(ev.sound) ? ev.sound : 'bell',
+        location: typeof ev.location === 'string' ? ev.location : '',
+        description: typeof ev.description === 'string' ? ev.description : ''
+      };
+    }
+
+    function saveAllToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(state.categories));
+        localStorage.setItem(STORAGE_KEYS.VISIBLE, JSON.stringify(state.visibleCategories));
+        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(state.events));
+      } catch (err) {
+        console.error('Fout bij opslaan localStorage:', err);
+      }
+    }
+
+    function seedInitialDemoEvents() {
+      const today = new Date();
+      const todayStr = formatDateYMD(today);
+      const tomorrowStr = formatDateYMD(addDays(today, 1));
+      const nextHour = Math.min(22, today.getHours() + 1);
+      const startDemo = `${String(nextHour).padStart(2, '0')}:00`;
+      const endDemo = `${String(Math.min(23, nextHour + 1)).padStart(2, '0')}:00`;
+
+      state.events = [
+        {
+          id: 'demo-1',
+          title: 'Projectoverleg & Planning',
+          date: todayStr,
+          startTime: startDemo,
+          endTime: endDemo,
+          allDay: false,
+          recurrence: 'weekly',
+          untilDate: '',
+          exceptions: {},
+          category: 'work',
+          reminderMinutes: 10,
+          sound: 'bell',
+          location: 'Vergaderruimte A / Online',
+          description: 'Wekelijkse voortgang bespreken met het team.'
+        },
+        {
+          id: 'demo-2',
+          title: 'Lunchpauze & Wandeling',
+          date: todayStr,
+          startTime: '12:30',
+          endTime: '13:15',
+          allDay: false,
+          recurrence: 'none',
+          untilDate: '',
+          category: 'personal',
+          reminderMinutes: 5,
+          sound: 'chime',
+          location: 'Stadspark',
+          description: ''
+        },
+        {
+          id: 'demo-3',
+          title: 'Tandarts controle',
+          date: tomorrowStr,
+          startTime: '14:00',
+          endTime: '14:45',
+          allDay: false,
+          recurrence: 'none',
+          untilDate: '',
+          category: 'health',
+          reminderMinutes: 30,
+          sound: 'urgent',
+          location: 'Tandartspraktijk Centrum',
+          description: 'Verzekeringspas meenemen.'
+        }
+      ];
+      saveAllToStorage();
+    }
+
+    function getCategoryById(id) {
+      return state.categories.find(c => c.id === id) || state.categories[0] || DEFAULT_CATEGORIES[0];
+    }
+
+    // 6. HERHALINGEN & INSTANTIE-BEREKENING VOOR EEN SPECIFIEKE DATUM
+    function doesSeriesOccurOnDate(ev, targetDate) {
+      const start = parseDateYMD(ev.date);
+      const target = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+      if (target < start) return false;
+
+      if (ev.untilDate) {
+        const until = parseDateYMD(ev.untilDate);
+        if (target > until) return false;
+      }
+
+      const rec = ev.recurrence || 'none';
+      if (rec === 'none') {
+        return isSameDay(start, target);
+      }
+
+      const diffDays = Math.round((target - start) / (1000 * 60 * 60 * 24));
+      if (rec === 'daily') return true;
+      if (rec === 'weekly') return diffDays % 7 === 0;
+      if (rec === 'biweekly') return diffDays % 14 === 0;
+      if (rec === 'monthly') return target.getDate() === start.getDate();
+      if (rec === 'yearly') return target.getDate() === start.getDate() && target.getMonth() === start.getMonth();
+      return false;
+    }
+
+    function getEventsForDate(dateObj) {
+      const dateStr = formatDateYMD(dateObj);
+      const result = [];
+
+      state.events.forEach(ev => {
+        const isRecurring = ev.recurrence && ev.recurrence !== 'none';
+        if (!isRecurring) {
+          if (ev.date === dateStr && state.visibleCategories.includes(ev.category)) {
+            result.push({
+              ...ev,
+              instanceDate: dateStr,
+              isSeriesInstance: false,
+              isException: false
+            });
+          }
+          return;
+        }
+
+        if (!doesSeriesOccurOnDate(ev, dateObj)) return;
+
+        const ex = ev.exceptions ? ev.exceptions[dateStr] : null;
+        if (ex && ex.deleted) return;
+
+        const merged = ex ? { ...ev, ...ex } : { ...ev };
+        if (!state.visibleCategories.includes(merged.category)) return;
+
+        result.push({
+          ...merged,
+          id: ev.id,
+          instanceDate: dateStr,
+          isSeriesInstance: true,
+          isException: Boolean(ex)
+        });
+      });
+
+      return result.sort((a, b) => {
+        if (a.allDay && !b.allDay) return -1;
+        if (!a.allDay && b.allDay) return 1;
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+    }
+
+    // 7. WEB AUDIO API GELUIDSSYNTHESIZER (GEEN EXTERNE MP3'S NODIG)
+    let sharedAudioCtx = null;
+
+    function getAudioContext() {
+      if (!sharedAudioCtx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) sharedAudioCtx = new AudioCtx();
+      }
+      if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+        sharedAudioCtx.resume().catch(() => {});
+      }
+      return sharedAudioCtx;
+    }
+
+    function playNotificationSound(type = 'bell') {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      if (type === 'chime') {
+        // Zachte harmonische chime (C5 - E5 - G5 - B5)
+        [523.25, 659.25, 783.99, 987.77].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.14);
+          gain.gain.setValueAtTime(0.001, now + idx * 0.14);
+          gain.gain.exponentialRampToValueAtTime(0.22, now + idx * 0.14 + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.14 + 0.75);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.14);
+          osc.stop(now + idx * 0.14 + 0.8);
+        });
+      } else if (type === 'urgent') {
+        // Urgent dubbel-puls alarm
+        [0, 0.22, 0.44].forEach(offset => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(880, now + offset);
+          osc.frequency.setValueAtTime(1046.5, now + offset + 0.08);
+          gain.gain.setValueAtTime(0.001, now + offset);
+          gain.gain.exponentialRampToValueAtTime(0.32, now + offset + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.17);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + offset);
+          osc.stop(now + offset + 0.18);
+        });
+      } else {
+        // Standaard Bel (heldere tweevoudige gong)
+        [880, 1318.5].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.18);
+          gain.gain.setValueAtTime(0.001, now + idx * 0.18);
+          gain.gain.exponentialRampToValueAtTime(0.28, now + idx * 0.18 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.18 + 0.9);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.18);
+          osc.stop(now + idx * 0.18 + 0.95);
+        });
+      }
+    }
+
+    function playSelectedModalSound() {
+      const sound = document.getElementById('event-sound')?.value || 'bell';
+      playNotificationSound(sound);
+    }
+
+    // 8. ALARM ENGINE (VISUEEL + AUDITIEF + SNOOZE)
+    function checkScheduledAlarms() {
+      const now = new Date();
+      const nowMs = now.getTime();
+
+      // 1. Controleer gesnoozede meldingen
+      for (let i = state.snoozedAlarms.length - 1; i >= 0; i--) {
+        const item = state.snoozedAlarms[i];
+        if (nowMs >= item.triggerMs) {
+          state.snoozedAlarms.splice(i, 1);
+          showAlarmOverlay(item.eventSnapshot);
+          return;
+        }
+      }
+
+      // 2. Controleer reguliere afspraken van vandaag
+      const todayEvents = getEventsForDate(now);
+      for (const ev of todayEvents) {
+        if (ev.allDay || ev.reminderMinutes === undefined || ev.reminderMinutes < 0) continue;
+
+        const [sh, sm] = ev.startTime.split(':').map(Number);
+        const eventStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm, 0, 0);
+        const triggerMs = eventStart.getTime() - ev.reminderMinutes * 60 * 1000;
+        const alarmKey = `${ev.id}_${ev.instanceDate}_${ev.reminderMinutes}`;
+
+        // Trigger als we binnen 0 tot 59 seconden na het alarmtijdstip zitten
+        if (nowMs >= triggerMs && nowMs < triggerMs + 60000 && !state.firedAlarmKeys.has(alarmKey)) {
+          state.firedAlarmKeys.add(alarmKey);
+          showAlarmOverlay(ev);
+          break;
+        }
+      }
+    }
+
+    function showAlarmOverlay(ev) {
+      state.activeAlarm = ev;
+      const cat = getCategoryById(ev.category);
+
+      const badge = document.getElementById('alarm-category-badge');
+      badge.textContent = `${cat.icon} ${cat.name}`;
+      badge.style.backgroundColor = cat.bgLight;
+      badge.style.color = cat.textDark;
+
+      document.getElementById('alarm-event-title').textContent = ev.title;
+      document.getElementById('alarm-event-time').textContent = ev.allDay
+        ? `${ev.instanceDate} • Hele dag`
+        : `${ev.instanceDate} • ${ev.startTime} – ${ev.endTime}`;
+      document.getElementById('alarm-event-location').textContent = ev.location ? `📍 ${ev.location}` : '';
+
+      const overlay = document.getElementById('alarm-overlay');
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+
+      const soundType = ev.sound || 'bell';
+      playNotificationSound(soundType);
+
+      clearInterval(state.alarmRepeatTimer);
+      state.alarmRepeatTimer = setInterval(() => {
+        if (state.activeAlarm) playNotificationSound(soundType);
+      }, 4500);
+    }
+
+    function dismissActiveAlarm() {
+      clearInterval(state.alarmRepeatTimer);
+      state.activeAlarm = null;
+      const overlay = document.getElementById('alarm-overlay');
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+    }
+
+    function snoozeActiveAlarm() {
+      if (state.activeAlarm) {
+        const snapshot = { ...state.activeAlarm };
+        state.snoozedAlarms.push({
+          triggerMs: Date.now() + 5 * 60 * 1000,
+          eventSnapshot: snapshot
+        });
+        showToast('Melding gesnoozed voor 5 minuten');
+      }
+      dismissActiveAlarm();
+    }
+
+    function triggerTestAlarm() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      showAlarmOverlay({
+        id: 'test-alarm',
+        title: 'Test Afspraak & Melding',
+        instanceDate: formatDateYMD(now),
+        startTime: `${hh}:${mm}`,
+        endTime: `${hh}:30`,
+        allDay: false,
+        category: state.categories[0]?.id || 'personal',
+        sound: 'bell',
+        location: 'Google Agenda PWA'
+      });
+    }
+
+    // 9. NAVIGATIE & UI RENDERING
+    function toggleSidebar(forceState) {
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      const isClosed = sidebar.classList.contains('-translate-x-full');
+      const shouldOpen = typeof forceState === 'boolean' ? forceState : isClosed;
+
+      if (shouldOpen) {
+        sidebar.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+      } else {
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    function changeView(newView) {
+      state.view = newView;
+      renderAll();
+    }
+
+    function goToToday() {
+      state.currentDate = new Date();
+      state.miniCalDate = new Date();
+      renderAll();
+    }
+
+    function navigatePeriod(delta) {
+      const d = state.currentDate;
+      if (state.view === 'day') {
+        state.currentDate = addDays(d, delta);
+      } else if (state.view === 'week') {
+        state.currentDate = addDays(d, delta * 7);
+      } else {
+        state.currentDate = new Date(d.getFullYear(), d.getMonth() + delta, 1);
+      }
+      state.miniCalDate = new Date(state.currentDate);
+      renderAll();
+    }
+
+    function navigateMiniMonth(delta) {
+      state.miniCalDate = new Date(state.miniCalDate.getFullYear(), state.miniCalDate.getMonth() + delta, 1);
+      renderMiniCalendar();
+    }
+
+    function updateHeaderControls() {
+      document.getElementById('logo-day-badge').textContent = new Date().getDate();
+
+      // View knoppen styling
+      ['day', 'week', 'month'].forEach(v => {
+        const btn = document.getElementById(`btn-view-${v}`);
+        if (state.view === v) {
+          btn.className = 'px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-white text-m3-primary shadow-2xs transition';
+        } else {
+          btn.className = 'px-3 py-1 rounded-full text-xs sm:text-sm font-medium text-m3-textMuted hover:text-m3-text transition';
+        }
+      });
+
+      // Periode titel
+      const label = document.getElementById('current-period-label');
+      const d = state.currentDate;
+      if (state.view === 'day') {
+        label.textContent = `${d.getDate()} ${NL_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+      } else if (state.view === 'week') {
+        const start = getStartOfWeek(d);
+        const end = addDays(start, 6);
+        if (start.getMonth() === end.getMonth()) {
+          label.textContent = `${NL_MONTHS[start.getMonth()][0].toUpperCase() + NL_MONTHS[start.getMonth()].slice(1)} ${start.getFullYear()}`;
+        } else {
+          label.textContent = `${NL_MONTHS[start.getMonth()].slice(0, 3)} – ${NL_MONTHS[end.getMonth()].slice(0, 3)} ${end.getFullYear()}`;
+        }
+      } else {
+        const m = NL_MONTHS[d.getMonth()];
+        label.textContent = `${m[0].toUpperCase() + m.slice(1)} ${d.getFullYear()}`;
+      }
+    }
+
+    function renderMiniCalendar() {
+      const base = state.miniCalDate;
+      const year = base.getFullYear();
+      const month = base.getMonth();
+      document.getElementById('mini-cal-title').textContent = `${NL_MONTHS[month]} ${year}`;
+
+      const firstDay = new Date(year, month, 1);
+      const startOffset = (firstDay.getDay() + 6) % 7; // Ma = 0
+      const gridStart = addDays(firstDay, -startOffset);
+      const today = new Date();
+
+      let html = '';
+      for (let i = 0; i < 42; i++) {
+        const cellDate = addDays(gridStart, i);
+        const inMonth = cellDate.getMonth() === month;
+        const isToday = isSameDay(cellDate, today);
+        const isSelected = isSameDay(cellDate, state.currentDate);
+        const ymd = formatDateYMD(cellDate);
+
+        let cls = 'w-7 h-7 mx-auto rounded-full flex items-center justify-center text-[11px] transition ';
+        if (isToday) {
+          cls += 'bg-m3-primary text-white font-bold shadow-2xs';
+        } else if (isSelected) {
+          cls += 'bg-m3-primaryContainer text-m3-onPrimaryContainer font-semibold';
+        } else if (inMonth) {
+          cls += 'text-m3-text hover:bg-slate-100';
+        } else {
+          cls += 'text-slate-400 hover:bg-slate-100';
+        }
+
+        html += `<button type="button" onclick="selectMiniCalDate('${ymd}')" class="${cls}">${cellDate.getDate()}</button>`;
+      }
+      document.getElementById('mini-cal-grid').innerHTML = html;
+    }
+
+    function selectMiniCalDate(ymd) {
+      state.currentDate = parseDateYMD(ymd);
+      state.miniCalDate = parseDateYMD(ymd);
+      renderAll();
+    }
+
+    function renderSidebarCategories() {
+      const container = document.getElementById('sidebar-categories-list');
+      container.innerHTML = state.categories.map(cat => {
+        const checked = state.visibleCategories.includes(cat.id);
+        return `
+          <div class="group flex items-center justify-between px-2 py-1.5 rounded-xl hover:bg-slate-200/60 transition">
+            <label class="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer">
+              <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleCategoryVisibility('${escapeHtml(cat.id)}')"
+                style="accent-color: ${cat.color};"
+                class="w-4 h-4 rounded cursor-pointer shrink-0" />
+              <span class="text-sm shrink-0">${escapeHtml(cat.icon)}</span>
+              <span class="text-xs font-medium text-m3-text truncate">${escapeHtml(cat.name)}</span>
+            </label>
+            <button type="button" onclick="openCategoryManagerModal(false, '${escapeHtml(cat.id)}')" title="Agenda bewerken"
+              class="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded-lg hover:bg-slate-300/70 text-m3-textMuted transition">
+              ✏️
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleCategoryVisibility(catId) {
+      const idx = state.visibleCategories.indexOf(catId);
+      if (idx >= 0) {
+        state.visibleCategories.splice(idx, 1);
+      } else {
+        state.visibleCategories.push(catId);
+      }
+      saveAllToStorage();
+      renderMainCalendar();
+    }
+
+    // 10. DAG-, WEEK- & MAANDWEERGAVE RENDEREN
+    function renderMainCalendar() {
+      const container = document.getElementById('calendar-view-container');
+      if (state.view === 'month') {
+        renderMonthView(container);
+      } else {
+        const days = state.view === 'day'
+          ? [new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), state.currentDate.getDate())]
+          : Array.from({ length: 7 }, (_, i) => addDays(getStartOfWeek(state.currentDate), i));
+        renderTimeGridView(container, days);
+      }
+      updateCurrentTimeIndicator();
+    }
+
+    function renderTimeGridView(container, days) {
+      const today = new Date();
+      const colCount = days.length;
+
+      // Dagkoppen + Hele-dag strook
+      let headerHtml = `<div class="border-b border-m3-outline bg-white shrink-0">`;
+      headerHtml += `<div class="grid" style="grid-template-columns: 56px repeat(${colCount}, minmax(0, 1fr));">`;
+      headerHtml += `<div class="border-r border-m3-outline/60 flex items-end justify-center pb-2 text-[10px] font-medium text-m3-textMuted">GMT+1</div>`;
+
+      days.forEach(day => {
+        const isToday = isSameDay(day, today);
+        const dayName = NL_DAYS_SHORT[day.getDay()].toUpperCase();
+        headerHtml += `
+          <div class="py-2.5 text-center border-r border-m3-outline/60 last:border-r-0">
+            <div class="text-[11px] font-semibold ${isToday ? 'text-m3-primary' : 'text-m3-textMuted'}">${dayName}</div>
+            <div class="w-9 h-9 mx-auto mt-0.5 rounded-full flex items-center justify-center text-lg font-medium ${isToday ? 'bg-m3-primary text-white shadow-xs' : 'text-m3-text'}">
+              ${day.getDate()}
+            </div>
+          </div>
+        `;
+      });
+      headerHtml += `</div>`;
+
+      // Hele-dag afspraken rij indien aanwezig
+      const hasAnyAllDay = days.some(d => getEventsForDate(d).some(e => e.allDay));
+      if (hasAnyAllDay) {
+        headerHtml += `<div class="grid border-t border-m3-outline/60 bg-slate-50/70" style="grid-template-columns: 56px repeat(${colCount}, minmax(0, 1fr));">`;
+        headerHtml += `<div class="border-r border-m3-outline/60 text-[10px] text-m3-textMuted flex items-center justify-center p-1">Hele dag</div>`;
+        days.forEach(day => {
+          const allDayEvs = getEventsForDate(day).filter(e => e.allDay);
+          headerHtml += `<div class="p-1 border-r border-m3-outline/60 last:border-r-0 space-y-1">`;
+          allDayEvs.forEach(ev => {
+            const cat = getCategoryById(ev.category);
+            const recBadge = ev.isSeriesInstance ? `<span class="opacity-85 ml-1" title="${ev.isException ? 'Aangepaste afspraak in reeks' : 'Herhalende reeks'}">${ev.isException ? '↻*' : '↻'}</span>` : '';
+            headerHtml += `
+              <div data-event-id="${escapeHtml(ev.id)}" data-instance-date="${escapeHtml(ev.instanceDate)}"
+                onclick="handleEventItemClick(event, this)"
+                class="text-[11px] font-semibold px-2 py-0.5 rounded-md text-white truncate cursor-pointer shadow-2xs hover:opacity-90 flex items-center justify-between gap-1 relative z-20"
+                style="background-color: ${cat.color};">
+                <span class="truncate">${escapeHtml(ev.title)}</span>${recBadge}
+              </div>
+            `;
+          });
+          headerHtml += `</div>`;
+        });
+        headerHtml += `</div>`;
+      }
+      headerHtml += `</div>`;
+
+      // Scrollbare uren-grid
+      let gridHtml = `<div id="time-grid-scroll" class="flex-1 overflow-y-auto relative">`;
+      gridHtml += `<div class="grid relative" style="grid-template-columns: 56px repeat(${colCount}, minmax(0, 1fr)); height: ${24 * HOUR_HEIGHT}px;">`;
+
+      // Uur-labels kolom
+      gridHtml += `<div class="border-r border-m3-outline/60 bg-white relative">`;
+      for (let h = 0; h < 24; h++) {
+        gridHtml += `
+          <div style="height: ${HOUR_HEIGHT}px;" class="relative">
+            ${h > 0 ? `<span class="absolute -top-2 right-2 text-[10px] font-medium text-m3-textMuted">${String(h).padStart(2, '0')}:00</span>` : ''}
+          </div>
+        `;
+      }
+      gridHtml += `</div>`;
+
+      // Dag-kolommen met klikbare uursloten + afspraken
+      days.forEach(day => {
+        const ymd = formatDateYMD(day);
+        const isToday = isSameDay(day, today);
+        const timedEvents = getEventsForDate(day).filter(e => !e.allDay);
+
+        gridHtml += `<div class="relative border-r border-m3-outline/60 last:border-r-0 ${isToday ? 'bg-blue-50/20' : ''}">`;
+
+        // Klikbare uurcellen
+        for (let h = 0; h < 24; h++) {
+          const startStr = `${String(h).padStart(2, '0')}:00`;
+          gridHtml += `
+            <div onclick="openEventModal(null, '${ymd}', '${startStr}')"
+              style="height: ${HOUR_HEIGHT}px;"
+              class="border-b border-m3-outline/50 hover:bg-m3-primaryContainer/25 cursor-pointer transition"></div>
+          `;
+        }
+
+        // Rode "nu"-tijdslijn
+        if (isToday) {
+          gridHtml += `
+            <div id="current-time-indicator" class="absolute left-0 right-0 z-10 pointer-events-none flex items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-red-600 -ml-1.5 shadow-xs"></div>
+              <div class="flex-1 h-[2px] bg-red-600"></div>
+            </div>
+          `;
+        }
+
+        // Afspraakblokken
+        timedEvents.forEach(ev => {
+          const cat = getCategoryById(ev.category);
+          const [sh, sm] = ev.startTime.split(':').map(Number);
+          const [eh, em] = ev.endTime.split(':').map(Number);
+          const startMins = sh * 60 + sm;
+          let endMins = eh * 60 + em;
+          if (endMins <= startMins) endMins = startMins + 30;
+
+          const topPx = (startMins / 60) * HOUR_HEIGHT;
+          const heightPx = Math.max(24, ((endMins - startMins) / 60) * HOUR_HEIGHT - 2);
+          const hasAlarm = ev.reminderMinutes !== undefined && ev.reminderMinutes >= 0;
+          const recIcon = ev.isSeriesInstance
+            ? `<span class="text-[10px] font-bold opacity-80 shrink-0" title="${ev.isException ? 'Los gewijzigde afspraak in reeks' : 'Onderdeel van herhalende reeks'}">${ev.isException ? '↻*' : '↻'}</span>`
+            : '';
+
+          gridHtml += `
+            <div data-event-id="${escapeHtml(ev.id)}" data-instance-date="${escapeHtml(ev.instanceDate)}"
+              onclick="handleEventItemClick(event, this)"
+              style="top: ${topPx}px; height: ${heightPx}px; background-color: ${cat.bgLight}; border-left: 4px solid ${cat.color}; color: ${cat.textDark};"
+              class="absolute left-1 right-1 rounded-lg px-2 py-1 shadow-xs hover:shadow-md cursor-pointer overflow-hidden transition z-20 flex flex-col justify-start">
+              <div class="flex items-center justify-between gap-1">
+                <span class="text-xs font-semibold truncate">${escapeHtml(ev.title)}</span>
+                <div class="flex items-center gap-0.5 shrink-0">
+                  ${recIcon}
+                  ${hasAlarm ? '<span class="text-[10px]" title="Melding ingesteld">🔔</span>' : ''}
+                </div>
+              </div>
+              <div class="text-[10px] opacity-80 truncate">${ev.startTime} – ${ev.endTime}</div>
+              ${heightPx > 46 && ev.location ? `<div class="text-[10px] opacity-75 truncate mt-0.5">📍 ${escapeHtml(ev.location)}</div>` : ''}
+            </div>
+          `;
+        });
+
+        gridHtml += `</div>`;
+      });
+
+      gridHtml += `</div></div>`;
+      container.innerHTML = headerHtml + gridHtml;
+
+      // Scroll naar 08:00 bij eerste render
+      const scroller = document.getElementById('time-grid-scroll');
+      if (scroller && !scroller.dataset.scrolled) {
+        scroller.scrollTop = 7.5 * HOUR_HEIGHT;
+        scroller.dataset.scrolled = '1';
+      }
+    }
+
+    function renderMonthView(container) {
+      const year = state.currentDate.getFullYear();
+      const month = state.currentDate.getMonth();
+      const firstOfMonth = new Date(year, month, 1);
+      const startOffset = (firstOfMonth.getDay() + 6) % 7;
+      const gridStart = addDays(firstOfMonth, -startOffset);
+      const today = new Date();
+
+      let html = `
+        <div class="grid grid-cols-7 border-b border-m3-outline bg-slate-50/70 shrink-0">
+          ${['MA', 'DI', 'WO', 'DO', 'VR', 'ZA', 'ZO'].map(d =>
+            `<div class="py-2 text-center text-[11px] font-semibold text-m3-textMuted border-r border-m3-outline/50 last:border-r-0">${d}</div>`
+          ).join('')}
+        </div>
+        <div class="flex-1 grid grid-cols-7 grid-rows-6 overflow-hidden">
+      `;
+
+      for (let i = 0; i < 42; i++) {
+        const cellDate = addDays(gridStart, i);
+        const cellStr = formatDateYMD(cellDate);
+        const inMonth = cellDate.getMonth() === month;
+        const isToday = isSameDay(cellDate, today);
+        const dayEvents = getEventsForDate(cellDate);
+
+        html += `
+          <div onclick="openEventModal(null, '${cellStr}', '09:00')"
+            class="border-r border-b border-m3-outline/60 p-1.5 flex flex-col cursor-pointer hover:bg-slate-50 transition overflow-hidden ${inMonth ? 'bg-white' : 'bg-slate-50/50'}">
+            <div class="flex items-center justify-between mb-1">
+              <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${isToday ? 'bg-m3-primary text-white' : (inMonth ? 'text-m3-text' : 'text-slate-400')}">
+                ${cellDate.getDate()}
+              </span>
+            </div>
+            <div class="space-y-1 overflow-y-auto flex-1">
+              ${dayEvents.slice(0, 3).map(ev => {
+                const cat = getCategoryById(ev.category);
+                const recMarker = ev.isSeriesInstance ? (ev.isException ? ' ↻*' : ' ↻') : '';
+                return `
+                  <div data-event-id="${escapeHtml(ev.id)}" data-instance-date="${escapeHtml(ev.instanceDate)}"
+                    onclick="handleEventItemClick(event, this)"
+                    style="background-color: ${cat.color};"
+                    class="text-[11px] text-white font-medium px-1.5 py-0.5 rounded-md truncate shadow-2xs hover:opacity-90 relative z-10">
+                    ${ev.allDay ? '' : `<span class="opacity-85">${ev.startTime}</span> `}${escapeHtml(ev.title)}${recMarker}
+                  </div>
+                `;
+              }).join('')}
+              ${dayEvents.length > 3 ? `<div onclick="event.stopPropagation(); jumpToDayView('${cellStr}')" class="text-[10px] font-semibold text-m3-primary hover:underline pl-1 cursor-pointer">+${dayEvents.length - 3} meer</div>` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      html += `</div>`;
+      container.innerHTML = html;
+    }
+
+    function updateCurrentTimeIndicator() {
+      const indicator = document.getElementById('current-time-indicator');
+      if (!indicator) return;
+      const now = new Date();
+      const mins = now.getHours() * 60 + now.getMinutes();
+      indicator.style.top = `${(mins / 60) * HOUR_HEIGHT}px`;
+    }
+
+    function handleEventItemClick(domEvent, el) {
+      if (domEvent) {
+        domEvent.stopPropagation();
+        domEvent.preventDefault();
+      }
+      const eventId = el?.dataset?.eventId;
+      const instanceDate = el?.dataset?.instanceDate || null;
+      if (eventId) {
+        openEventModal(eventId, instanceDate);
+      }
+    }
+
+    function jumpToDayView(dateStr) {
+      state.currentDate = parseDateYMD(dateStr);
+      state.miniCalDate = parseDateYMD(dateStr);
+      changeView('day');
+    }
+
+    function renderAll() {
+      updateHeaderControls();
+      renderMiniCalendar();
+      renderSidebarCategories();
+      renderMainCalendar();
+    }
+
+    // 11. AFSPRAAK MODAL LOGICA (MAKEN & BEWERKEN)
+    function openEventModal(eventId = null, targetDateStr = null, defaultStartTime = '09:00') {
+      const modal = document.getElementById('event-modal');
+      const heading = document.getElementById('event-modal-heading');
+      const deleteBtn = document.getElementById('btn-delete-event');
+
+      if (eventId) {
+        const baseEv = state.events.find(e => e.id === eventId);
+        if (!baseEv) return;
+
+        const instDate = targetDateStr || baseEv.date;
+        const ex = baseEv.exceptions ? baseEv.exceptions[instDate] : null;
+        const ev = ex ? { ...baseEv, ...ex } : { ...baseEv };
+
+        heading.textContent = baseEv.recurrence !== 'none' ? 'Herhalende afspraak bewerken' : 'Afspraak bewerken';
+        deleteBtn.classList.remove('hidden');
+
+        document.getElementById('event-id').value = baseEv.id;
+        document.getElementById('event-instance-date').value = instDate;
+        document.getElementById('event-title').value = ev.title;
+        document.getElementById('event-date').value = instDate;
+        document.getElementById('event-all-day').checked = Boolean(ev.allDay);
+        document.getElementById('event-start-time').value = ev.startTime || '09:00';
+        document.getElementById('event-end-time').value = ev.endTime || '10:00';
+        document.getElementById('event-recurrence').value = baseEv.recurrence || 'none';
+        document.getElementById('event-until-date').value = baseEv.untilDate || '';
+        document.getElementById('event-reminder').value = String(ev.reminderMinutes ?? 10);
+        document.getElementById('event-sound').value = ev.sound || 'bell';
+        document.getElementById('event-location').value = ev.location || '';
+        document.getElementById('event-description').value = ev.description || '';
+        state.selectedModalCategory = ev.category || state.categories[0]?.id || 'personal';
+      } else {
+        heading.textContent = 'Nieuwe afspraak';
+        deleteBtn.classList.add('hidden');
+
+        const dateVal = targetDateStr || formatDateYMD(state.currentDate);
+        const [sh, sm] = defaultStartTime.split(':').map(Number);
+        const endH = Math.min(23, sh + 1);
+        const endStr = `${String(endH).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
+
+        document.getElementById('event-id').value = '';
+        document.getElementById('event-instance-date').value = '';
+        document.getElementById('event-title').value = '';
+        document.getElementById('event-date').value = dateVal;
+        document.getElementById('event-all-day').checked = false;
+        document.getElementById('event-start-time').value = defaultStartTime;
+        document.getElementById('event-end-time').value = endStr;
+        document.getElementById('event-recurrence').value = 'none';
+        document.getElementById('event-until-date').value = '';
+        document.getElementById('event-reminder').value = '10';
+        document.getElementById('event-sound').value = 'bell';
+        document.getElementById('event-location').value = '';
+        document.getElementById('event-description').value = '';
+        state.selectedModalCategory = state.visibleCategories[0] || state.categories[0]?.id || 'personal';
+      }
+
+      toggleAllDayInputs();
+      toggleRecurrenceUntilRow();
+      renderModalCategoryPicker();
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      setTimeout(() => document.getElementById('event-title').focus(), 50);
+    }
+
+    function closeEventModal() {
+      const modal = document.getElementById('event-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function toggleAllDayInputs() {
+      const isAllDay = document.getElementById('event-all-day').checked;
+      const row = document.getElementById('time-inputs-row');
+      row.classList.toggle('opacity-40', isAllDay);
+      row.classList.toggle('pointer-events-none', isAllDay);
+    }
+
+    function toggleRecurrenceUntilRow() {
+      const rec = document.getElementById('event-recurrence').value;
+      const row = document.getElementById('recurrence-until-row');
+      row.classList.toggle('hidden', rec === 'none');
+    }
+
+    function renderModalCategoryPicker() {
+      const container = document.getElementById('modal-category-picker');
+      container.innerHTML = state.categories.map(cat => {
+        const active = cat.id === state.selectedModalCategory;
+        return `
+          <button type="button" onclick="selectModalCategory('${escapeHtml(cat.id)}')"
+            style="background-color: ${active ? cat.color : cat.bgLight}; color: ${active ? '#ffffff' : cat.textDark}; border-color: ${cat.color};"
+            class="px-3 py-1.5 rounded-full text-xs font-semibold border transition flex items-center gap-1.5">
+            <span>${escapeHtml(cat.icon)}</span>
+            <span>${escapeHtml(cat.name)}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectModalCategory(catId) {
+      state.selectedModalCategory = catId;
+      renderModalCategoryPicker();
+    }
+
+    function handleEventFormSubmit(e) {
+      e.preventDefault();
+      const existingId = document.getElementById('event-id').value;
+      const instanceDate = document.getElementById('event-instance-date').value;
+
+      const formData = {
+        title: document.getElementById('event-title').value.trim() || '(Geen titel)',
+        date: document.getElementById('event-date').value,
+        allDay: document.getElementById('event-all-day').checked,
+        startTime: document.getElementById('event-start-time').value || '09:00',
+        endTime: document.getElementById('event-end-time').value || '10:00',
+        recurrence: document.getElementById('event-recurrence').value || 'none',
+        untilDate: document.getElementById('event-until-date').value || '',
+        category: state.selectedModalCategory || state.categories[0]?.id || 'personal',
+        reminderMinutes: Number(document.getElementById('event-reminder').value),
+        sound: document.getElementById('event-sound').value || 'bell',
+        location: document.getElementById('event-location').value.trim(),
+        description: document.getElementById('event-description').value.trim()
+      };
+
+      if (!existingId) {
+        // Nieuwe afspraak aanmaken
+        const newEvent = normalizeEventRecord({
+          id: 'ev-' + Date.now(),
+          ...formData,
+          exceptions: formData.recurrence !== 'none' ? {} : undefined
+        });
+        state.events.push(newEvent);
+        if (!state.visibleCategories.includes(newEvent.category)) {
+          state.visibleCategories.push(newEvent.category);
+        }
+        saveAllToStorage();
+        closeEventModal();
+        renderAll();
+        showToast('Afspraak opgeslagen');
+        return;
+      }
+
+      const existingEvent = state.events.find(ev => ev.id === existingId);
+      if (!existingEvent) return;
+
+      // Als bestaande afspraak een herhalende reeks is: vraag gebruiker om bereik!
+      if (existingEvent.recurrence && existingEvent.recurrence !== 'none') {
+        state.pendingRecurrenceAction = {
+          mode: 'edit',
+          eventId: existingId,
+          instanceDate: instanceDate || existingEvent.date,
+          formData
+        };
+        openRecurrenceScopeModal('edit');
+        return;
+      }
+
+      // Enkelvoudige afspraak direct bijwerken
+      const idx = state.events.findIndex(ev => ev.id === existingId);
+      state.events[idx] = normalizeEventRecord({
+        ...existingEvent,
+        ...formData
+      });
+      saveAllToStorage();
+      closeEventModal();
+      renderAll();
+      showToast('Afspraak bijgewerkt');
+    }
+
+    function initiateDeleteEvent() {
+      const existingId = document.getElementById('event-id').value;
+      const instanceDate = document.getElementById('event-instance-date').value;
+      const existingEvent = state.events.find(ev => ev.id === existingId);
+      if (!existingEvent) return;
+
+      if (existingEvent.recurrence && existingEvent.recurrence !== 'none') {
+        state.pendingRecurrenceAction = {
+          mode: 'delete',
+          eventId: existingId,
+          instanceDate: instanceDate || existingEvent.date
+        };
+        openRecurrenceScopeModal('delete');
+        return;
+      }
+
+      state.events = state.events.filter(ev => ev.id !== existingId);
+      saveAllToStorage();
+      closeEventModal();
+      renderAll();
+      showToast('Afspraak verwijderd');
+    }
+
+    // 12. HERHALENDE REEKSEN KEUZEDIALOOG AFHANDELEN
+    function openRecurrenceScopeModal(mode) {
+      const modal = document.getElementById('recurrence-scope-modal');
+      const title = document.getElementById('recurrence-scope-title');
+      const allOption = document.getElementById('recurrence-scope-all-option');
+
+      title.textContent = mode === 'edit'
+        ? 'Herhalende afspraak bewerken'
+        : 'Herhalende afspraak verwijderen';
+
+      // Bij verwijderen tonen we ook "Alle afspraken in de reeks"
+      allOption.classList.toggle('hidden', mode !== 'delete');
+      modal.querySelector('input[name="recurrence-scope"][value="single"]').checked = true;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeRecurrenceScopeModal() {
+      const modal = document.getElementById('recurrence-scope-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      state.pendingRecurrenceAction = null;
+    }
+
+    function confirmRecurrenceScopeAction() {
+      const action = state.pendingRecurrenceAction;
+      if (!action) return;
+
+      const scope = document.querySelector('input[name="recurrence-scope"]:checked')?.value || 'single';
+      const evIndex = state.events.findIndex(e => e.id === action.eventId);
+      if (evIndex === -1) {
+        closeRecurrenceScopeModal();
+        return;
+      }
+
+      const series = state.events[evIndex];
+      const instDate = action.instanceDate;
+
+      if (action.mode === 'edit') {
+        const data = action.formData;
+        if (scope === 'single') {
+          // Bewaar wijziging als losse uitzondering op deze datum
+          if (!series.exceptions) series.exceptions = {};
+          series.exceptions[instDate] = {
+            title: data.title,
+            allDay: data.allDay,
+            startTime: data.startTime,
+            endTime: data.endTime,
+            category: data.category,
+            reminderMinutes: data.reminderMinutes,
+            sound: data.sound,
+            location: data.location,
+            description: data.description
+          };
+          showToast('Alleen deze afspraak bijgewerkt');
+        } else {
+          // "following": Splits de reeks op vanaf instDate
+          if (instDate === series.date) {
+            state.events[evIndex] = normalizeEventRecord({
+              ...series,
+              ...data,
+              date: instDate,
+              exceptions: {}
+            });
+          } else {
+            // Sluit oude reeks af op de dag vóór instDate
+            const dayBefore = formatDateYMD(addDays(parseDateYMD(instDate), -1));
+            series.untilDate = dayBefore;
+            if (series.exceptions) {
+              Object.keys(series.exceptions).forEach(k => {
+                if (k >= instDate) delete series.exceptions[k];
+              });
+            }
+            // Start nieuwe reeks vanaf instDate
+            const newSeries = normalizeEventRecord({
+              id: 'ev-' + Date.now(),
+              ...data,
+              date: instDate,
+              recurrence: data.recurrence === 'none' ? series.recurrence : data.recurrence,
+              exceptions: {}
+            });
+            state.events.push(newSeries);
+          }
+          showToast('Deze en volgende afspraken bijgewerkt');
+        }
+      } else if (action.mode === 'delete') {
+        if (scope === 'single') {
+          if (!series.exceptions) series.exceptions = {};
+          series.exceptions[instDate] = { deleted: true };
+          showToast('Alleen deze afspraak verwijderd');
+        } else if (scope === 'following') {
+          if (instDate === series.date) {
+            state.events.splice(evIndex, 1);
+          } else {
+            series.untilDate = formatDateYMD(addDays(parseDateYMD(instDate), -1));
+          }
+          showToast('Deze en volgende afspraken verwijderd');
+        } else {
+          state.events.splice(evIndex, 1);
+          showToast('Hele reeks verwijderd');
+        }
+      }
+
+      saveAllToStorage();
+      closeRecurrenceScopeModal();
+      closeEventModal();
+      renderAll();
+    }
+
+    // 13. AGENDA'S & CATEGORIEËN BEHEREN (AANMAKEN, BEWERKEN, VERWIJDEREN)
+    function openCategoryManagerModal(returnToEventModal = false, editCatId = null) {
+      state.returnToEventModalAfterCatManager = returnToEventModal;
+      resetCategoryForm();
+      if (editCatId) startEditingCategory(editCatId);
+      renderCategorySwatches();
+      renderManagerCategoriesList();
+
+      const modal = document.getElementById('category-manager-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeCategoryManagerModal() {
+      const modal = document.getElementById('category-manager-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+
+      if (state.returnToEventModalAfterCatManager) {
+        state.returnToEventModalAfterCatManager = false;
+        renderModalCategoryPicker();
+      }
+    }
+
+    function setCatIcon(icon) {
+      document.getElementById('cat-icon-input').value = icon;
+    }
+
+    function renderCategorySwatches() {
+      const container = document.getElementById('cat-color-swatches');
+      let html = M3_PALETTE.map(hex => {
+        const selected = hex.toLowerCase() === state.selectedCatColor.toLowerCase();
+        return `
+          <button type="button" onclick="selectCatColor('${hex}')"
+            style="background-color: ${hex};"
+            class="w-7 h-7 rounded-full transition flex items-center justify-center text-white text-xs font-bold ${selected ? 'ring-2 ring-offset-2 ring-slate-800 scale-110' : 'hover:scale-105'}">
+            ${selected ? '✓' : ''}
+          </button>
+        `;
+      }).join('');
+
+      // Custom kleurkiezer
+      html += `
+        <label title="Aangepaste kleur kiezen"
+          class="w-7 h-7 rounded-full border border-m3-outline bg-white hover:bg-slate-100 flex items-center justify-center text-xs font-bold text-m3-text cursor-pointer relative overflow-hidden">
+          <span>+</span>
+          <input type="color" value="${state.selectedCatColor}" onchange="selectCatColor(this.value)"
+            class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+        </label>
+      `;
+      container.innerHTML = html;
+    }
+
+    function selectCatColor(hex) {
+      state.selectedCatColor = hex;
+      renderCategorySwatches();
+    }
+
+    function resetCategoryForm() {
+      document.getElementById('cat-edit-id').value = '';
+      document.getElementById('cat-icon-input').value = '📅';
+      document.getElementById('cat-name-input').value = '';
+      document.getElementById('cat-form-mode-label').textContent = 'Nieuwe agenda toevoegen';
+      document.getElementById('cat-submit-btn').textContent = 'Agenda toevoegen';
+      document.getElementById('cat-form-reset-btn').classList.add('hidden');
+      state.selectedCatColor = '#1a73e8';
+      renderCategorySwatches();
+    }
+
+    function startEditingCategory(catId) {
+      const cat = state.categories.find(c => c.id === catId);
+      if (!cat) return;
+      document.getElementById('cat-edit-id').value = cat.id;
+      document.getElementById('cat-icon-input').value = cat.icon;
+      document.getElementById('cat-name-input').value = cat.name;
+      document.getElementById('cat-form-mode-label').textContent = `Agenda bewerken: ${cat.name}`;
+      document.getElementById('cat-submit-btn').textContent = 'Wijzigingen opslaan';
+      document.getElementById('cat-form-reset-btn').classList.remove('hidden');
+      state.selectedCatColor = cat.color;
+      renderCategorySwatches();
+    }
+
+    function handleCategoryFormSubmit(e) {
+      e.preventDefault();
+      const editId = document.getElementById('cat-edit-id').value;
+      const icon = document.getElementById('cat-icon-input').value.trim() || '📅';
+      const name = document.getElementById('cat-name-input').value.trim();
+      if (!name) return;
+
+      const colors = buildCategoryColors(state.selectedCatColor);
+
+      if (editId) {
+        const idx = state.categories.findIndex(c => c.id === editId);
+        if (idx !== -1) {
+          state.categories[idx] = { ...state.categories[idx], name, icon, ...colors };
+          showToast('Agenda bijgewerkt');
+        }
+      } else {
+        const newCat = {
+          id: 'cat-' + Date.now(),
+          name,
+          icon,
+          ...colors
+        };
+        state.categories.push(newCat);
+        state.visibleCategories.push(newCat.id);
+        state.selectedModalCategory = newCat.id;
+        showToast('Nieuwe agenda aangemaakt');
+      }
+
+      saveAllToStorage();
+      resetCategoryForm();
+      renderManagerCategoriesList();
+      renderAll();
+    }
+
+    function renderManagerCategoriesList() {
+      const container = document.getElementById('manager-categories-list');
+      const canDelete = state.categories.length > 1;
+
+      container.innerHTML = state.categories.map(cat => {
+        const count = state.events.filter(e => e.category === cat.id).length;
+        return `
+          <div class="flex items-center justify-between p-2.5 rounded-2xl border border-m3-outline/70 bg-white">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-4 h-4 rounded-full shrink-0" style="background-color: ${cat.color};"></span>
+              <span class="text-base">${escapeHtml(cat.icon)}</span>
+              <div class="truncate">
+                <div class="text-xs font-semibold text-m3-text truncate">${escapeHtml(cat.name)}</div>
+                <div class="text-[11px] text-m3-textMuted">${count} afspra${count === 1 ? 'ak' : 'ken'}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" onclick="startEditingCategory('${escapeHtml(cat.id)}')" title="Bewerken"
+                class="p-1.5 rounded-xl hover:bg-slate-100 text-xs">✏️</button>
+              <button type="button" ${canDelete ? '' : 'disabled'} onclick="initiateDeleteCategory('${escapeHtml(cat.id)}')"
+                title="${canDelete ? 'Verwijderen' : 'Minstens 1 agenda vereist'}"
+                class="p-1.5 rounded-xl ${canDelete ? 'hover:bg-red-50 text-red-600' : 'opacity-30 cursor-not-allowed'} text-xs">🗑️</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function initiateDeleteCategory(catId) {
+      if (state.categories.length <= 1) return;
+      const cat = getCategoryById(catId);
+      const linkedCount = state.events.filter(e => e.category === catId).length;
+      state.pendingDeleteCategoryId = catId;
+
+      const desc = document.getElementById('delete-cat-description');
+      const transferBox = document.getElementById('delete-cat-transfer-box');
+      const targetSelect = document.getElementById('delete-cat-target-select');
+
+      if (linkedCount > 0) {
+        desc.textContent = `De agenda "${cat.name}" bevat ${linkedCount} afspra${linkedCount === 1 ? 'ak' : 'ken'}. Wat wil je hiermee doen?`;
+        transferBox.classList.remove('hidden');
+        targetSelect.innerHTML = state.categories
+          .filter(c => c.id !== catId)
+          .map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.icon)} ${escapeHtml(c.name)}</option>`)
+          .join('');
+      } else {
+        desc.textContent = `Weet je zeker dat je de lege agenda "${cat.name}" wilt verwijderen?`;
+        transferBox.classList.add('hidden');
+      }
+
+      const modal = document.getElementById('delete-category-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeDeleteCategoryModal() {
+      const modal = document.getElementById('delete-category-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      state.pendingDeleteCategoryId = null;
+    }
+
+    function confirmDeleteCategory() {
+      const catId = state.pendingDeleteCategoryId;
+      if (!catId || state.categories.length <= 1) return;
+
+      const mode = document.querySelector('input[name="delete-cat-mode"]:checked')?.value || 'transfer';
+      const targetId = document.getElementById('delete-cat-target-select').value;
+
+      if (mode === 'purge') {
+        state.events = state.events.filter(e => e.category !== catId);
+      } else if (targetId) {
+        state.events.forEach(e => {
+          if (e.category === catId) e.category = targetId;
+        });
+      }
+
+      state.categories = state.categories.filter(c => c.id !== catId);
+      state.visibleCategories = state.visibleCategories.filter(id => id !== catId);
+      if (state.selectedModalCategory === catId) {
+        state.selectedModalCategory = state.categories[0].id;
+      }
+
+      saveAllToStorage();
+      closeDeleteCategoryModal();
+      renderManagerCategoriesList();
+      renderAll();
+      showToast('Agenda verwijderd');
+    }
+
+    // 14. INITIALISATIE BIJ OPSTARTEN
+    window.addEventListener('DOMContentLoaded', () => {
+      loadFromStorage();
+      renderAll();
+
+      // Ontgrendel Web Audio bij eerste gebruikersinteractie
+      document.body.addEventListener('pointerdown', () => getAudioContext(), { once: true });
+
+      // Controleer elke 5 seconden op geplande alarmen & update rode tijdslijn
+      setInterval(() => {
+        checkScheduledAlarms();
+        updateCurrentTimeIndicator();
+      }, 5000);
+    });
+  </script>
+</body>
+</html>
+```
